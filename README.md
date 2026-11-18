@@ -18,8 +18,7 @@ A/B two-wire bus (low-voltage DC power + data, polarity-free)
    | Power & modem  |  filtering -> common-mode choke -> bridge -> 5 V; modem circuit
    | board           |
    +----+------------+
-        |  4-wire harness: +5V / GND / TX / RX
-        |  adapter board (ESP8266) taps 3 of them: +5V / GND / RX (listen-only, TX not used)
+        |  adapter board (ESP8266) soldered to 3 wires: +5V / GND / RX (listen-only)
    +-----------------+
    |  control panel  |  panel MCU + display + IR receiver
    +-----------------+
@@ -32,11 +31,11 @@ Adapter board wiring (ESP8266 NodeMCU):
 | D2 / GPIO4 | **IR transmit** | GPIO -> 100 ohm -> IR LED, direct drive (no MOSFET); peak ~15-20 mA at 50% duty; proven to reach the panel |
 | D6 / GPIO12 | **Bus receive** | modem board demodulated data output (RX line), 9600 8E1 software serial, always on |
 
-Power for the board: harness +5 V -> AMS1117-3.3.
+Power for the board: the soldered +5 V -> AMS1117-3.3.
 
 ![York modem board](img/york-modem-board.jpg)
 
-The adapter is soldered with only 3 wires into the 4-wire harness: +5V / GND / RX (the soldered wires in the photo).
+The adapter is soldered with 3 wires: +5V / GND / RX (the soldered wires in the photo).
 
 ## 2. Physical Layer Findings
 
@@ -100,30 +99,7 @@ One heartbeat = two request-response rounds: panel 18B <-> indoor ACK + 39B; pan
 
 Protocol conclusion: the panel is the command initiator, the indoor unit is the executor/reporter.
 
-### 3.5 Frame Samples (checksum-verified, parsing reference)
-
-18B settings frame template = `21 00 12 02 01 01 02 01 02 B1` + `idx10` + `idx11` + `idx12` + `10 85 04` + `idx16` + `chk`:
-
-| Action | idx10 | idx11 | idx12 | idx16 | Full frame |
-| --- | --- | --- | --- | --- | --- |
-| OFF, cool 24 C | 88 | 12 | 18 | 21 | `21 00 12 02 01 01 02 01 02 B1 88 12 18 10 85 04 21 92` |
-| ON, cool 24 C | 89 | 12 | 18 | 21 | `21 00 12 02 01 01 02 01 02 B1 89 12 18 10 85 04 21 93` |
-| ON, dry 24 C | 91 | 12 | 18 | 21 | `21 00 12 02 01 01 02 01 02 B1 91 12 18 10 85 04 21 8B` |
-| ON, heat 20 C | C1 | 12 | 14 | 21 | `21 00 12 02 01 01 02 01 02 B1 C1 12 14 10 85 04 21 D7` |
-| ON, fan 24 C | A1 | 12 | 18 | 21 | `21 00 12 02 01 01 02 01 02 B1 A1 12 18 10 85 04 21 BB` |
-| fan level 1 | 89 | 18 | 19 | 31 | `21 00 12 02 01 01 02 01 02 B1 89 18 19 10 85 04 31 88` |
-| fan level 3 | 89 | 14 | 19 | 31 | `21 00 12 02 01 01 02 01 02 B1 89 14 19 10 85 04 31 84` |
-| fan level 6 | 89 | 12 | 19 | 31 | `21 00 12 02 01 01 02 01 02 B1 89 12 19 10 85 04 31 82` |
-
-48B config block template = `21 00 30 02 01 01 02 01 02 BD 00 00 FF FF` + `idx14` + `00 41 00` + 27x `00` + `38 06 00` + `chk` (steady state `idx14=00`, tail `F1`; settings-changed round `idx14=40`, tail `B1`).
-
-39B status frame reference (ON, cool 24 C, compressor starting):
-
-```
-12 00 27 01 02 01 01 01 01 B1 09 12 18 D0 00 00 04 20 00 03 00 00 00 00 00 13 1E 03 18 40 00 20 00 1B 00 00 00 04 08
-```
-
-### 3.6 Receive Filter (checksum gate)
+### 3.5 Receive Filter (checksum gate)
 
 ```
 frameLenAt(k):
@@ -234,13 +210,7 @@ Both combine into one board (the deployed form: D6 = bus RX, D2 = IR TX) - **bus
 
 ## 6. Evidence Files
 
-Raw oscilloscope captures and screenshots are in [`img/evidence/`](img/evidence/):
+Key measurement screenshots are in [`img/evidence/`](img/evidence/):
 
-- `F0000~F0006TEK.JPG`: early waveform measurement screenshots;
-- `CH1/CH2 .csv` files of F0008 / F0023 / F0025 / F0026 / F0027: raw samples of the bus and panel TX;
-- `F0018/F0019`: panel-to-indoor-unit ACK, 2 us sampling;
-- `F0023`: ACK timing;
-- `F0025/F0026/F0027`: the real-panel power-off transaction, segmented and full view (matches the frame samples in section 3);
-- `问答时间.JPG`: bus traffic vs. key-press timing.
-
-The CSV data can be re-plotted with any tool; the screenshot file names are the measurement subjects.
+- `F0018`: panel-to-indoor-unit ACK, 2 us sampling (section 3.2);
+- `F0026`: the real-panel power-off transaction, full view (section 3.3).

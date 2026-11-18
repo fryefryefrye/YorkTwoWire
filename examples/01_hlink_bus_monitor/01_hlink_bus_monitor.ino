@@ -1,10 +1,10 @@
 // Example 01 - York H-Link bus status monitor (RX only, never transmits)
 //
 // York YCWA16NCWQ wired panel: the power & modem board (power supply + modem,
-// one side of the A/B two-wire polarity-free bus) exposes a 4-wire harness to
-// the control panel (panel MCU + display + IR receiver): +5V / GND / TX / RX.
-// The adapter taps 3 of the 4 wires (+5V / GND / RX - listen-only, TX not
-// needed) and prints every checksum-validated frame plus the running AC state
+// one side of the A/B two-wire polarity-free bus) talks to the control panel
+// (panel MCU + display + IR receiver). The adapter is soldered to 3 wires
+// (+5V / GND / RX - listen-only) and prints every checksum-validated frame
+// plus the running AC state
 // (power / mode / set temperature / room temperature / compressor / blower /
 // fan level).
 //
