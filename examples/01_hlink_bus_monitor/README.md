@@ -1,15 +1,15 @@
 # Example 01 - York H-Link Bus Status Monitor (RX Only)
 
-Listens on the **RX line between the York strong-power board and the weak-power board** (panel side) and prints every checksum-validated H-Link frame plus the running AC state: power, mode, set temperature, room temperature, compressor, blower and fan level.
+Listens on the **RX line between the York power & modem board and the control panel** (panel side) and prints every checksum-validated H-Link frame plus the running AC state: power, mode, set temperature, room temperature, compressor, blower and fan level.
 
-The sketch **never transmits on the bus**. The panel is the closed setting authority (its ~30 s heartbeat re-asserts its own settings), so listening is safe and complete while transmitting is useless - control goes over infrared (see [Example 02](../02_ir_control/)).
+The sketch **never transmits on the bus** - listening is safe and complete, and control goes over infrared (see [Example 02](../02_ir_control/)).
 
 ## Hardware
 
 | Item | Notes |
 | :--- | :--- |
 | ESP8266 (NodeMCU) | any ESP8266 board |
-| Access point | the 4-wire harness between the strong-power board and the weak-power board: `+5V / GND / TX / RX` |
+| Access point | the 4-wire harness between the power & modem board and the control panel: the adapter taps 3 of the 4 wires (`+5V / GND / RX`, TX not needed) |
 
 Power for the ESP8266 comes from the harness `+5V` (through a 3.3 V regulator on the NodeMCU).
 
@@ -47,9 +47,9 @@ See the main [README](../../README.zh-CN.md), section 3 (message format, checksu
 
 ## 中文说明
 
-监听约克线控面板**强电板与弱电板之间的 RX 线**，打印所有通过校验和验证的 H-Link 帧，并解析空调运行状态（开关/模式/设定温度/室温/压缩机/内风机/风速档位）。
+监听约克线控面板**供电与调制解调板与控制面板之间的 RX 线**，打印所有通过校验和验证的 H-Link 帧，并解析空调运行状态（开关/模式/设定温度/室温/压缩机/内风机/风速档位）。
 
-- 本例程**只收不发**：面板是总线上封闭的设定权威（30s 心跳会重申自己的设定），监听安全且完整，注入则注定被覆盖——控制走红外（见例程 02）。
-- 接线：强电板引出的 4 线（+5V / GND / TX / RX）——RX → D6(GPIO12)，9600 波特 8E1 软串；+5V → 5V；GND → GND。
+- 本例程**只收不发**：监听安全且完整，控制走红外（见例程 02）。
+- 接线：只接 4 线中的 3 根（+5V / GND / RX，TX 不接）——RX → D6(GPIO12)，9600 波特 8E1 软串；+5V → 5V；GND → GND。
 - RX 线上有 TX 的物理回显：面板（0x21）与内机（0x12）的帧都出现在这一条线上，一路软串口全收。
 - 串口 115200 输出逐帧内容与 `[AC]` 状态行、`[AC change]` 变化行；帧格式、校验和（XOR）、字段表见主 README 第三节。

@@ -2,10 +2,10 @@
 
 Target: the York **YCWA16NCWQ** wired panel. The panel talks to the indoor unit over the **H-Link A/B two-wire polarity-free bus** (low-voltage DC power supply + data on the same two wires). Findings:
 
-- The panel is a **closed setting authority** on the bus - listen-only is safe and complete; anything injected is overwritten.
+- The panel is a **closed setting authority** on the bus - listen-only is safe and complete.
 - Control goes over **infrared** (a 184-bit HITACHI_AC3 full-state frame), equivalent to "a person pressing a key" - zero bus traffic, zero risk.
 
-This project publishes the working results only: **tapping the running status between the strong-power board and the weak-power board** (bus listen-only) plus **infrared control**. Example sketches live in [`examples/`](examples/). (The full Chinese write-up is in [README.zh-CN.md](README.zh-CN.md); this file is a condensed English version.)
+This project publishes the working results only: **tapping the running status between the power & modem board and the control panel** (bus listen-only) plus **infrared control**. Example sketches live in [`examples/`](examples/). (The full Chinese write-up is in [README.zh-CN.md](README.zh-CN.md); this file is a condensed English version.)
 
 ---
 
@@ -14,15 +14,15 @@ This project publishes the working results only: **tapping the running status be
 ```
 A/B two-wire bus (low-voltage DC power + data, polarity-free)
         |
-   +----+-----+
-   | Strong-  |  filtering -> common-mode choke -> bridge -> 5 V; modem circuit
-   | power    |
-   +----+-----+
-        |  4-wire harness: +5V / GND / TX / RX  <- adapter board (ESP8266) taps here
-   +----+-----+
-   | Weak-    |  panel MCU + display + IR receiver
-   | power    |
-   +----------+
+   +----+------------+
+   | Power & modem  |  filtering -> common-mode choke -> bridge -> 5 V; modem circuit
+   | board           |
+   +----+------------+
+        |  4-wire harness: +5V / GND / TX / RX
+        |  adapter board (ESP8266) taps 3 of them: +5V / GND / RX (listen-only, TX not used)
+   +-----------------+
+   |  control panel  |  panel MCU + display + IR receiver
+   +-----------------+
 ```
 
 Adapter board wiring (ESP8266 NodeMCU):
@@ -30,13 +30,13 @@ Adapter board wiring (ESP8266 NodeMCU):
 | Pin | Purpose | Notes |
 | --- | --- | --- |
 | D2 / GPIO4 | **IR transmit** | GPIO -> 100 ohm -> IR LED, direct drive (no MOSFET); peak ~15-20 mA at 50% duty; proven to reach the panel |
-| D5 / GPIO14 | IR receive (optional) | separate demodulating IR receiver, for self-check / capturing missing codes |
 | D6 / GPIO12 | **Bus receive** | modem board demodulated data output (RX line), 9600 8E1 software serial, always on |
-| D7 / GPIO13 | unused | the bus-transmit route was abandoned (section 4) |
 
 Power for the board: harness +5 V -> AMS1117-3.3.
 
 ![York modem board](img/york-modem-board.jpg)
+
+The adapter is soldered with only 3 wires into the 4-wire harness: +5V / GND / RX (the soldered wires in the photo).
 
 ## 2. Physical Layer Findings
 
@@ -50,9 +50,7 @@ Power for the board: harness +5 V -> AMS1117-3.3.
 | Parity bit | even parity for data bytes; the **address byte's 9th bit is always 1** (address mark - shows up as a parity error, i.e. message boundary) |
 | Bus rhythm | idle in steady state; **heartbeat every ~30 s**; extra traffic only after key presses |
 
-**Echo mechanism**: RX is a purely physical conversion of TX - a falling-edge-triggered re-triggerable monostable (~1 bit clock, 105-150 us) stretches each 0-bit's 60 us low pulse to a full bit width, consecutive 0s merge into one low stretch, edges aligned with TX. Therefore **one 9600 8E1 software serial port receives ALL traffic - panel (0x21) and indoor unit (0x12) frames alike**. This is the physical basis of "tapping the running status between the strong-power board and the weak-power board".
-
-Electrical notes: TX idles at **3.24 V** (panel present, 3.3 V logic), panel drive impedance ~620 ohm; RX line has a 5.1k-to-GND / 7.5k-to-5V bias network. The A/B bus itself (other side of the strong-power board) needs no attention: 0 bit = inject a ~100 us pulse cycle, 1 bit = no change; 24 V idle; level shifting is done by the modem board.
+**Echo mechanism**: RX is a purely physical conversion of TX - a falling-edge-triggered re-triggerable monostable (~1 bit clock, 105-150 us) stretches each 0-bit's 60 us low pulse to a full bit width, consecutive 0s merge into one low stretch, edges aligned with TX. Therefore **one 9600 8E1 software serial port receives ALL traffic - panel (0x21) and indoor unit (0x12) frames alike**. This is the physical basis of "tapping the running status between the power & modem board and the control panel".
 
 ## 3. Link-Layer Protocol
 
@@ -138,19 +136,9 @@ frameLenAt(k):
 
 Principle: **only accept checksum-consistent frames**; interference fragments and mis-aligned soft-serial stitches are dropped with byte-wise resync. (Long frames occasionally lose `0x00` bytes - the XOR checksum is insensitive to that, hence the tolerance of 4 bytes.)
 
-## 4. Why Listen-Only (final conclusion)
+## 4. Infrared Control
 
-The panel is a closed authority on the bus - three measured proofs:
-
-1. Injected commands are executed by the indoor unit, but **the panel's ~30 s heartbeat re-asserts its memorized settings and overwrites the result** (three closed-loop tests: inject OFF -> indoor off -> heartbeat turns it back on).
-2. The panel **completely ignores** frames from sessions it did not initiate (playing the indoor unit and sending a transaction: not even a link-layer ACK comes back).
-3. On power-up the panel **does not query the indoor unit**; it comes online with a default "off" and re-asserts one-way. Indoor-unit broadcasts are not adopted.
-
-=> The bus side offers no external channel to change the panel's state. Control goes over IR ("pressing a key for the panel": the panel state changes first, then the panel itself forwards everything). Bus injection works as a temporary indoor-unit shutdown but never persists, so this project does not use it.
-
-## 5. Infrared Control
-
-### 5.1 Protocol = HITACHI_AC3, 184-bit "Normal" state frame (23 bytes, MSB first, 38 kHz)
+### 4.1 Protocol = HITACHI_AC3, 184-bit "Normal" state frame (23 bytes, MSB first, 38 kHz)
 
 Measured timing matches the IRremoteESP8266 constants exactly:
 
@@ -165,9 +153,9 @@ Measured timing matches the IRremoteESP8266 constants exactly:
 
 **The footer mark must not be omitted**: a real remote frame has rawlen = **372** edges = header 2 + 184 bits x 2 (368) + **footer mark 1** + final gap. Hand-rolled senders with footermark = 0 produce 370 edges; every data bit is correct and the panel still drops the frame ("carrier present, pulses present, panel unmoved"). "Last mark + long gap" is the panel decoder's termination condition.
 
-**Send every command twice** (`repeat=1`): the IR receiver AGC desensitizes after long frames.
+**Send every command twice** (`repeat=1`): the receiver's AGC desensitizes after long frames.
 
-### 5.2 Bit Order (key finding)
+### 4.2 Bit Order (key finding)
 
 **The remote sends MSB-first; the library `sendHitachiAc3()` sends LSB-first (`MSBfirst=false`) - the same bytes become per-byte bit-reversed on the wire.** Feeding raw remote bytes to the library produces mirrored garbage that the panel always drops. Fix (either way, identical waveforms):
 
@@ -176,7 +164,7 @@ Measured timing matches the IRremoteESP8266 constants exactly:
 
 Warning: never validate bit order with "we sent it, we received it" - that is circular. Use a real remote capture or the panel's reaction.
 
-### 5.3 Frame Structure and Code Tables (all captured from the real remote)
+### 4.3 Frame Structure and Code Tables (all captured from the real remote)
 
 The whole frame is built from "value + inverted value" complement pairs: byte17 = (mode << 4) \| fan and byte18 = ~byte17; temperature byte15/16 and power byte21/22 are isomorphic.
 
@@ -220,41 +208,38 @@ Note: the remote's displayed level numbers 1..6 are reversed relative to the act
 
 **Temperature short frame (17 B, backup path)**: the temperature key sends a shorter frame (first 17 bytes only, byte7/8 = `C7 38`, byte11/12 = `90 6F`, byte15/16 = temperature code / ~code). Verified 12 times that the panel accepts it; but the full power frame already carries every parameter, so the short frame is kept as a backup only. The mode-key short frame (`A0 5F` marker) is not used.
 
-### 5.4 Hardware (final)
+### 4.4 Hardware (final)
 
 | Item | Solution |
 | --- | --- |
-| Receive | separate demodulating IR receiver -> **D5**, hears the remote in parallel with the panel |
 | Transmit | **D2 direct drive** (no MOSFET): pin -> 100 ohm -> IR LED, peak ~15-20 mA (50% duty), proven sufficient |
 | Carrier | 38 kHz, matches the panel |
 
-### 5.5 Troubleshooting Chain (field-proven)
+### 4.5 Troubleshooting Chain (field-proven)
 
-- Receiver OUT has demodulated pulses = physical layer OK (carrier / header OK); pulses but the panel does not react = wrong code pattern (check **bit order** 5.2 first, then the **footer mark** 5.1); no pulses at all = carrier / power / obstruction.
 - Every data byte matches yet the panel does not react -> almost certainly a **missing frame-tail piece** (footer mark not sent) or a single transmission (AGC needs two).
 - AC IR protocols use **full-state frames** (power + mode + temperature + fan together), not key codes; **byte-diff** adjacent key frames to locate fields.
-- A demodulating receiver outputs baseband -> use IRrecv; a signal tapped across the IR LED still carries the 38 kHz carrier -> needs a carrier edge counter. The two mechanisms must not be mixed.
 - The remote sends each key once; the panel reports the new state over the bus 0.8-1.4 s later (the panel is the setting authority - IR changes to it are always adopted).
 
-## 6. Example Code
+## 5. Example Code
 
 Minimal sketches (ESP8266 / Arduino) live in [`examples/`](examples/):
 
 | Example | Interface | What it does |
 | :--- | :--- | :--- |
-| [01_hlink_bus_monitor](examples/01_hlink_bus_monitor/) | H-Link RX line (strong-power <-> weak-power board) | **RX only**: decodes all checksum-validated frames (18B/39B/48B/ACK) and prints the running state: power, mode, set temperature, room temperature, compressor, blower, fan level |
+| [01_hlink_bus_monitor](examples/01_hlink_bus_monitor/) | H-Link RX line (power & modem board <-> control panel) | **RX only**: decodes all checksum-validated frames (18B/39B/48B/ACK) and prints the running state: power, mode, set temperature, room temperature, compressor, blower, fan level |
 | [02_ir_control](examples/02_ir_control/) | IR LED on D2 | sends the HITACHI_AC3 184-bit state frame: power, mode, set temperature, fan |
 
-Both combine into one board (the deployed form: D6 = bus RX, D2 = IR TX, D5 = optional IR receive for self-check) - **bus listening for status, IR for control**.
+Both combine into one board (the deployed form: D6 = bus RX, D2 = IR TX) - **bus listening for status, IR for control**.
 
-## 7. Evidence Files
+## 6. Evidence Files
 
 Raw oscilloscope captures and screenshots are in [`img/evidence/`](img/evidence/):
 
 - `F0000~F0006TEK.JPG`: early waveform measurement screenshots;
 - `CH1/CH2 .csv` files of F0008 / F0023 / F0025 / F0026 / F0027: raw samples of the bus and panel TX;
 - `F0018/F0019`: panel-to-indoor-unit ACK, 2 us sampling;
-- `F0023`: ACK timing (our ACK 4 ms late, comparison);
+- `F0023`: ACK timing;
 - `F0025/F0026/F0027`: the real-panel power-off transaction, segmented and full view (matches the frame samples in section 3);
 - `问答时间.JPG`: bus traffic vs. key-press timing.
 

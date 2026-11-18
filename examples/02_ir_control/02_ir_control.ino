@@ -1,11 +1,9 @@
-﻿// Example 02 - York AC infrared control (HITACHI_AC3 184-bit state frame)
+// Example 02 - York AC infrared control (HITACHI_AC3 184-bit state frame)
 //
 // Why IR and not the bus: the panel is the closed setting authority on the
-// H-Link bus (see Example 01 / README). Injected bus commands are executed by
-// the indoor unit but overwritten by the panel's ~30 s heartbeat. Sending IR
-// to the panel is equivalent to "a person pressing a key": the panel state
-// changes first, then the panel itself forwards everything to the indoor unit.
-// Zero bus traffic, zero risk.
+// H-Link bus (see Example 01 / README). Sending IR to the panel is equivalent
+// to "a person pressing a key": the panel state changes first, then the panel
+// itself forwards everything to the indoor unit. Zero bus traffic, zero risk.
 //
 // Frame: 23 bytes = HITACHI_AC3 "Normal" 184-bit state frame, 38 kHz, MSB-first
 // (remote bit order). Measured timing matches IRremoteESP8266's kHitachiAc3

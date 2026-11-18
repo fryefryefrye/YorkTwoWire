@@ -1,17 +1,15 @@
-﻿// Example 01 - York H-Link bus status monitor (RX only, never transmits)
+// Example 01 - York H-Link bus status monitor (RX only, never transmits)
 //
-// York YCWA16NCWQ wired panel: the strong-power board (power supply + modem,
+// York YCWA16NCWQ wired panel: the power & modem board (power supply + modem,
 // one side of the A/B two-wire polarity-free bus) exposes a 4-wire harness to
-// the weak-power board (panel MCU + display + IR receiver): +5V / GND / TX / RX.
-// This sketch taps the RX line only and prints every checksum-validated frame
-// plus the running AC state (power / mode / set temperature / room temperature
-// / compressor / blower / fan level).
+// the control panel (panel MCU + display + IR receiver): +5V / GND / TX / RX.
+// The adapter taps 3 of the 4 wires (+5V / GND / RX - listen-only, TX not
+// needed) and prints every checksum-validated frame plus the running AC state
+// (power / mode / set temperature / room temperature / compressor / blower /
+// fan level).
 //
-// Why only RX works (see README, "why listen-only"):
-//   The panel is the closed setting authority on the bus. Anything injected
-//   from outside is overwritten by the panel's ~30 s heartbeat, and the panel
-//   ignores frames from sessions it did not start itself. So the bus side is
-//   receive-only; control goes over infrared (see Example 02).
+// Listen-only by design: the control panel is the closed setting authority on
+// the bus; control goes over infrared (see Example 02).
 //
 // Key facts (all measured, see README for details):
 //   - RX carries a physical echo of every TX edge: one re-triggerable monostable
